@@ -1,0 +1,8 @@
+{
+  "name": "Acme Trading Ltd",
+  "jurisdiction": "GB",
+  "registration_number": "10000001",
+  "address": "1 Example Street, London, EC1A 1BB",
+  "website": "https://acme-trading.example.com",
+  "industry": "Import / Export"
+}

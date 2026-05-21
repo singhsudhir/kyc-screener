@@ -1,0 +1,40 @@
+# Data files with sensitive info
+# Environment variables
+# IDE
+# LangGraph / LangChain cache
+# Logs
+# OS
+# Python
+# Testing
+# Virtual environments
+*$py.class
+*.egg-info/
+*.log
+*.py[cod]
+*.so
+*.swo
+*.swp
+.DS_Store
+.Python
+.coverage
+.eggs/
+.env.local
+.idea/
+.langchain.db
+.pytest_cache/
+.tox/
+.venv/
+.vscode/
+ENV/
+Thumbs.db
+__pycache__/
+build/
+data/live_*.json
+data/real_*.json
+dist/
+env/
+htmlcov/
+langchain_cache/
+logs/
+venv/
+.env
