@@ -33,6 +33,7 @@ data/live_*.json
 data/real_*.json
 data/sanctions/*.json
 data/sanctions/*.db
+!data/sanctions/focused.db.gz
 dist/
 env/
 htmlcov/

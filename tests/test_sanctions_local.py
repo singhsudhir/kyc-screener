@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.tools.sanctions_local import _normalise, _token_score, query_local_sanctions
+from src.tools.sanctions_local import _normalise, _token_score, query_local_sanctions, _resolve_db
 
 
 # ── unit helpers ──────────────────────────────────────────────────────────────
@@ -77,7 +77,7 @@ async def test_query_local_finds_match():
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "sanctions.db"
         _make_test_db(db_path)
-        with patch("src.tools.sanctions_local._DB_PATH", db_path):
+        with patch("src.tools.sanctions_local._resolve_db", return_value=db_path):
             result = await query_local_sanctions("Acme Weapons")
     hits = result["responses"]["entity"]["results"]
     assert len(hits) >= 1
@@ -90,7 +90,7 @@ async def test_query_local_no_match():
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "sanctions.db"
         _make_test_db(db_path)
-        with patch("src.tools.sanctions_local._DB_PATH", db_path):
+        with patch("src.tools.sanctions_local._resolve_db", return_value=db_path):
             result = await query_local_sanctions("XYZ Holdings")
     hits = result["responses"]["entity"]["results"]
     assert hits == []
@@ -98,7 +98,7 @@ async def test_query_local_no_match():
 
 @pytest.mark.asyncio
 async def test_query_local_missing_index():
-    with patch("src.tools.sanctions_local._DB_PATH", Path("/nonexistent/path.db")):
+    with patch("src.tools.sanctions_local._resolve_db", return_value=None):
         result = await query_local_sanctions("Acme")
     assert "error" in result
 
@@ -108,7 +108,7 @@ async def test_jurisdiction_boost():
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "sanctions.db"
         _make_test_db(db_path)
-        with patch("src.tools.sanctions_local._DB_PATH", db_path):
+        with patch("src.tools.sanctions_local._resolve_db", return_value=db_path):
             result_with = await query_local_sanctions("Acme Weapons", jurisdiction="US")
             result_without = await query_local_sanctions("Acme Weapons", jurisdiction=None)
     hits_with = result_with["responses"]["entity"]["results"]

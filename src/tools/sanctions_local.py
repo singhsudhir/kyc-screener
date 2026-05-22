@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import gzip
 import json
 import re
+import shutil
 import sqlite3
+import tempfile
 import unicodedata
 from pathlib import Path
 from typing import Any
@@ -11,14 +14,57 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-_DB_PATH = Path("data/sanctions/sanctions.db")
+_SANCTIONS_DIR = Path("data/sanctions")
+_DB_PATH       = _SANCTIONS_DIR / "sanctions.db"    # full 1.3M-entity index (local only)
+_FOCUSED_DB    = _SANCTIONS_DIR / "focused.db"      # decompressed focused index
+_FOCUSED_GZ    = _SANCTIONS_DIR / "focused.db.gz"   # committed compressed index
+
 _MAX_CANDIDATES = 200
 _MAX_RESULTS = 15
 _MIN_SCORE = 0.35
 
+# Cached path to the SQLite file to use this process lifetime
+_resolved_db: Path | None = None
+
+
+def _decompress_focused() -> Path | None:
+    """Decompress focused.db.gz to a temp file; return its path or None on failure."""
+    if not _FOCUSED_GZ.exists():
+        return None
+    try:
+        tmp_dir = Path(tempfile.mkdtemp(prefix="kyc_sanctions_"))
+        dest = tmp_dir / "focused.db"
+        logger.info("decompressing_sanctions_index", src=str(_FOCUSED_GZ), dest=str(dest))
+        with gzip.open(_FOCUSED_GZ, "rb") as f_in, open(dest, "wb") as f_out:
+            shutil.copyfileobj(f_in, f_out)
+        logger.info("decompressed_ok", size_mb=round(dest.stat().st_size / 1_048_576, 1))
+        return dest
+    except Exception as exc:
+        logger.error("decompress_failed", error=str(exc))
+        return None
+
+
+def _resolve_db() -> Path | None:
+    """Return the SQLite DB path to use, decompressing if needed. Cached after first call."""
+    global _resolved_db
+    if _resolved_db is not None and _resolved_db.exists():
+        return _resolved_db
+
+    if _DB_PATH.exists():
+        _resolved_db = _DB_PATH
+    elif _FOCUSED_DB.exists():
+        _resolved_db = _FOCUSED_DB
+    else:
+        _resolved_db = _decompress_focused()
+
+    return _resolved_db
+
+
+def is_index_available() -> bool:
+    return _resolve_db() is not None
+
 
 def _normalise(text: str) -> str:
-    """Lowercase, strip diacritics, collapse non-word characters."""
     text = unicodedata.normalize("NFD", text)
     text = "".join(c for c in text if unicodedata.category(c) != "Mn")
     text = text.lower()
@@ -39,16 +85,10 @@ def _token_score(query: str, candidate: str) -> float:
     return len(overlap) / len(q_toks | c_toks)
 
 
-def is_index_available() -> bool:
-    return _DB_PATH.exists()
-
-
 def _build_fts_query(name: str) -> str:
-    """Build an FTS5 OR query from the significant tokens in name."""
     tokens = [t for t in _normalise(name).split() if len(t) > 2]
     if not tokens:
         return ""
-    # Quote each token to treat as a phrase unit, combine with OR
     return " OR ".join(f'"{t}"' for t in tokens)
 
 
@@ -56,25 +96,29 @@ async def query_local_sanctions(
     name: str,
     jurisdiction: str | None = None,
 ) -> dict[str, Any]:
-    """Search the local FTM SQLite index for sanctioned entities matching *name*.
+    """Search the local SQLite FTS5 index for sanctioned entities matching *name*.
 
-    Returns a dict in the same shape as the live OpenSanctions /match response so
-    the sanctions agent needs no changes.
+    Returns a dict in the same shape as the live OpenSanctions /match response.
+    Tries (in order): sanctions.db → focused.db → focused.db.gz (auto-decompressed).
     """
     log = logger.bind(tool="sanctions_local", name=name)
 
-    if not _DB_PATH.exists():
-        log.warning("index_missing", path=str(_DB_PATH))
-        return {"error": "Local sanctions index not built", "responses": {}}
+    db_path = _resolve_db()
+    if db_path is None:
+        log.warning("index_missing")
+        return {"error": "Local sanctions index not available", "responses": {}}
 
     fts_query = _build_fts_query(name)
     if not fts_query:
         return {"responses": {"entity": {"results": []}}}
 
     try:
-        con = sqlite3.connect(f"file:{_DB_PATH}?mode=ro", uri=True)
+        con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
         con.row_factory = sqlite3.Row
         try:
+            # For external-content FTS5 (focused.db) the name column is in entity_names;
+            # for the original full index it's stored directly in names_fts.
+            # Both schemas expose entity_id and name through the same virtual table interface.
             rows = con.execute(
                 """
                 SELECT DISTINCT
@@ -94,7 +138,6 @@ async def query_local_sanctions(
         log.error("db_error", error=str(exc))
         return {"error": str(exc), "responses": {}}
 
-    # Score every candidate against the query name
     scored: list[dict[str, Any]] = []
     seen_ids: set[str] = set()
 
@@ -108,7 +151,6 @@ async def query_local_sanctions(
         matched_score = _token_score(name, row["matched_name"])
         score = max(caption_score, matched_score)
 
-        # Jurisdiction boost: if the entity's country matches, add +0.05
         if jurisdiction:
             try:
                 countries: list[str] = json.loads(row["country"])
@@ -140,5 +182,5 @@ async def query_local_sanctions(
     scored.sort(key=lambda r: r["score"], reverse=True)
     results = scored[:_MAX_RESULTS]
 
-    log.info("done", candidates=len(rows), hits=len(results))
+    log.info("done", candidates=len(rows), hits=len(results), db=db_path.name)
     return {"responses": {"entity": {"results": results}}}
