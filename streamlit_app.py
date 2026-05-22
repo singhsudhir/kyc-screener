@@ -365,7 +365,7 @@ st.set_page_config(
     page_title="KYC Screener",
     page_icon="🔍",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1674,15 +1674,37 @@ def _check_live_available() -> bool:
     return bool(os.environ.get("GEMINI_API_KEY") and os.environ.get("TAVILY_API_KEY"))
 
 
-def _render_sidebar() -> bool:
-    """Render sidebar and return True if Live Mode is active."""
-    live_available = _check_live_available()
+def _render_sidebar() -> None:
+    """Render sidebar info panel (toggle lives in the main page, not here)."""
     with st.sidebar:
         st.markdown(
             '<p style="font-size:0.65rem;font-weight:700;text-transform:uppercase;'
-            'letter-spacing:0.1em;color:#4A5568;margin:0 0 1rem;">Mode</p>',
+            'letter-spacing:0.1em;color:#4A5568;margin:0 0 0.75rem;">About</p>'
+            '<p style="font-size:0.72rem;color:#8B949E;line-height:1.6;margin:0 0 1rem;">'
+            'Multi-agent KYC screening powered by Gemini 2.5 Flash, LangGraph, and OpenSanctions.</p>'
+            '<hr style="border-color:rgba(255,255,255,0.07);margin:1rem 0;"/>'
+            '<p style="font-size:0.65rem;font-weight:700;text-transform:uppercase;'
+            'letter-spacing:0.1em;color:#4A5568;margin:0 0 0.5rem;">Data sources</p>'
+            '<ul style="font-size:0.72rem;color:#8B949E;line-height:1.8;margin:0;padding-left:1.1rem;">'
+            '<li>OFAC SDN &amp; Consolidated</li>'
+            '<li>EU Consolidated Sanctions</li>'
+            '<li>UN Security Council</li>'
+            '<li>UK HM Treasury</li>'
+            '<li>Interpol Red Notices</li>'
+            '<li>14 additional lists</li>'
+            '</ul>'
+            '<hr style="border-color:rgba(255,255,255,0.07);margin:1rem 0;"/>'
+            '<p style="font-size:0.65rem;color:#4A5568;line-height:1.5;">'
+            '⚠ For compliance screening purposes only. Not legal advice.</p>',
             unsafe_allow_html=True,
         )
+
+
+def _render_mode_toggle() -> bool:
+    """Render the Demo / Live toggle in the main content area. Always visible."""
+    live_available = _check_live_available()
+    col_tog, col_status = st.columns([3, 7])
+    with col_tog:
         live = st.toggle(
             "Live Screening",
             key="live_mode_toggle",
@@ -1690,52 +1712,40 @@ def _render_sidebar() -> bool:
             help=(
                 "Screen any company using real AI agents and live data sources"
                 if live_available else
-                "Add GEMINI_API_KEY and TAVILY_API_KEY to Streamlit secrets to enable"
+                "Add GEMINI_API_KEY + TAVILY_API_KEY to Streamlit secrets to enable"
             ),
         )
         if not live_available:
-            live = False  # keep False even if toggle state is somehow True
-
+            live = False
+    with col_status:
         if live:
             st.markdown(
-                '<div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);'
-                'border-radius:6px;padding:0.6rem 0.75rem;margin-top:0.75rem;">'
-                '<p style="font-size:0.72rem;font-weight:700;color:#22C55E;margin:0 0 0.2rem;">Live Mode Active</p>'
-                '<p style="font-size:0.68rem;color:#8B949E;margin:0;">Real AI agents · Live data · API calls charged</p>'
-                '</div>',
+                '<p style="margin:0.35rem 0 0;font-size:0.78rem;">'
+                '<span style="color:#22C55E;font-weight:700;">● Live Mode active</span>'
+                '<span style="color:#8B949E;"> — real AI agents, live data, API calls billed</span>'
+                '</p>',
                 unsafe_allow_html=True,
             )
         elif live_available:
             st.markdown(
-                '<div style="background:rgba(56,139,253,0.07);border:1px solid rgba(56,139,253,0.18);'
-                'border-radius:6px;padding:0.6rem 0.75rem;margin-top:0.75rem;">'
-                '<p style="font-size:0.72rem;font-weight:700;color:#388BFD;margin:0 0 0.2rem;">Demo Mode</p>'
-                '<p style="font-size:0.68rem;color:#8B949E;margin:0;">Sample data · No API calls · Free to explore</p>'
-                '</div>',
+                '<p style="margin:0.35rem 0 0;font-size:0.78rem;">'
+                '<span style="color:#388BFD;font-weight:700;">● Demo Mode</span>'
+                '<span style="color:#8B949E;"> — pre-loaded scenarios, no API calls</span>'
+                '</p>',
                 unsafe_allow_html=True,
             )
         else:
             st.markdown(
-                '<div style="background:rgba(56,139,253,0.07);border:1px solid rgba(56,139,253,0.18);'
-                'border-radius:6px;padding:0.6rem 0.75rem;margin-top:0.75rem;">'
-                '<p style="font-size:0.72rem;font-weight:700;color:#388BFD;margin:0 0 0.2rem;">Demo Mode</p>'
-                '<p style="font-size:0.68rem;color:#8B949E;margin:0;">Sample data · No API calls</p>'
-                '</div>',
+                '<p style="margin:0.35rem 0 0;font-size:0.78rem;">'
+                '<span style="color:#388BFD;font-weight:700;">● Demo Mode</span>'
+                '<span style="color:#8B949E;"> — add API keys to Streamlit secrets to enable live screening</span>'
+                '</p>',
                 unsafe_allow_html=True,
             )
-            st.markdown(
-                '<p style="font-size:0.65rem;color:#8B949E;line-height:1.6;margin-top:0.75rem;">'
-                'Add <code>GEMINI_API_KEY</code> and <code>TAVILY_API_KEY</code> to '
-                'Streamlit secrets to enable live screening.</p>',
-                unsafe_allow_html=True,
-            )
-
-        st.markdown(
-            '<hr style="border-color:rgba(255,255,255,0.07);margin:1.5rem 0;"/>'
-            '<p style="font-size:0.65rem;color:#4A5568;line-height:1.6;">'
-            'Multi-agent KYC screening powered by Gemini 2.5 Flash, LangGraph, and OpenSanctions.</p>',
-            unsafe_allow_html=True,
-        )
+    st.markdown(
+        '<hr style="border-color:rgba(255,255,255,0.07);margin:0.75rem 0 1.5rem;"/>',
+        unsafe_allow_html=True,
+    )
     return live
 
 
@@ -1880,9 +1890,10 @@ def _run_screening_inline(payload: dict) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 _css()
 
-live_mode = _render_sidebar()
+_render_sidebar()
 
 _render_header()
+live_mode = _render_mode_toggle()
 _render_demo_banner_cloud(live_mode)
 
 if live_mode:
@@ -1915,13 +1926,13 @@ if live_mode:
             st.error("Please select a jurisdiction.")
         else:
             jurisdiction = jur_option.split(" — ")[0].strip()
-            # Clear previous live result flag
             st.session_state.pop("last_report", None)
+            st.session_state.pop("last_report_live", None)
             _run_screening_inline({
                 "name":        company_name.strip(),
                 "jurisdiction": jurisdiction,
             })
-    elif "last_report" in st.session_state:
+    elif st.session_state.get("last_report_live"):
         _render_report(st.session_state["last_report"])
     else:
         _render_empty()
