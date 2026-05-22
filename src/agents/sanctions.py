@@ -8,7 +8,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from src.orchestrator.state import GraphState
 from src.models import SanctionsResults
 from src.tools.sanctions_api import query_opensanctions
-from src.agents._llm import get_llm, ainvoke_with_retry
+from src.agents._llm import build_chain
 
 logger = structlog.get_logger(__name__)
 
@@ -26,7 +26,7 @@ _prompt = ChatPromptTemplate.from_messages([
 
 @functools.lru_cache(maxsize=1)
 def _chain():
-    return _prompt | get_llm().with_structured_output(SanctionsResults)
+    return build_chain(_prompt, SanctionsResults)
 
 
 async def run(state: GraphState) -> dict:
@@ -36,7 +36,7 @@ async def run(state: GraphState) -> dict:
 
     api_results = await query_opensanctions(entity.name, entity.jurisdiction)
 
-    results: SanctionsResults = await ainvoke_with_retry(_chain(), {
+    results: SanctionsResults = await _chain().ainvoke({
         "name": entity.name,
         "jurisdiction": entity.jurisdiction,
         "api_results": str(api_results),
@@ -44,7 +44,9 @@ async def run(state: GraphState) -> dict:
 
     new_flags: list[str] = []
     if results.is_sanctioned:
-        new_flags.append(f"SANCTIONS HIT: {entity.name} matched on {', '.join(results.checked_lists)}")
+        new_flags.append(
+            f"SANCTIONS HIT: {entity.name} matched on {', '.join(results.checked_lists)}"
+        )
 
     log.info("complete", hits=len(results.hits), is_sanctioned=results.is_sanctioned)
     return {"sanctions_results": results, "flags": new_flags}

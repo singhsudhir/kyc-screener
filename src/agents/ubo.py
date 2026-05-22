@@ -9,7 +9,7 @@ from src.orchestrator.state import GraphState
 from src.models import UBOStructure
 from src.tools.search import web_search
 from src.tools.company_registry import lookup_company_registry
-from src.agents._llm import get_llm, ainvoke_with_retry
+from src.agents._llm import build_chain
 
 logger = structlog.get_logger(__name__)
 
@@ -36,7 +36,7 @@ _prompt = ChatPromptTemplate.from_messages([
 
 @functools.lru_cache(maxsize=1)
 def _chain():
-    return _prompt | get_llm().with_structured_output(UBOStructure)
+    return build_chain(_prompt, UBOStructure)
 
 
 async def run(state: GraphState) -> dict:
@@ -46,7 +46,7 @@ async def run(state: GraphState) -> dict:
 
     registry_data, search_results = await _fetch_sources(entity)
 
-    structure: UBOStructure = await ainvoke_with_retry(_chain(), {
+    structure: UBOStructure = await _chain().ainvoke({
         "name": entity.name,
         "jurisdiction": entity.jurisdiction,
         "reg_number": entity.registration_number or "unknown",
@@ -65,6 +65,8 @@ async def _fetch_sources(entity) -> tuple[dict, str]:
     registry_data = await lookup_company_registry(
         entity.name, entity.jurisdiction, entity.registration_number
     )
-    raw = await web_search(f"{entity.name} shareholders beneficial owner UBO {entity.jurisdiction}")
+    raw = await web_search(
+        f"{entity.name} shareholders beneficial owner UBO {entity.jurisdiction}"
+    )
     search_results = "\n\n".join(f"[{r['url']}]\n{r['content']}" for r in raw)
     return registry_data, search_results

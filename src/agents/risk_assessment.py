@@ -7,7 +7,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from src.orchestrator.state import GraphState
 from src.models import RiskRating
-from src.agents._llm import get_llm, ainvoke_with_retry
+from src.agents._llm import build_chain
 
 logger = structlog.get_logger(__name__)
 
@@ -48,15 +48,15 @@ _prompt = ChatPromptTemplate.from_messages([
 
 @functools.lru_cache(maxsize=1)
 def _chain():
-    return _prompt | get_llm().with_structured_output(RiskRating)
+    return build_chain(_prompt, RiskRating)
 
 
 async def run(state: GraphState) -> dict:
-    entity = state["entity"]
+    entity   = state["entity"]
     research = state["research_findings"]
     sanctions = state["sanctions_results"]
-    ubo = state["ubo_structure"]
-    flags = state.get("flags", [])
+    ubo      = state["ubo_structure"]
+    flags    = state.get("flags", [])
 
     log = logger.bind(agent="risk_assessment", entity=entity.name)
     log.info("starting")
@@ -67,17 +67,17 @@ async def run(state: GraphState) -> dict:
         if sanctions else []
     )
 
-    rating: RiskRating = await ainvoke_with_retry(_chain(), {
-        "name": entity.name,
-        "jurisdiction": entity.jurisdiction,
-        "research_summary": research.summary if research else "N/A",
-        "adverse_media": "; ".join(research.adverse_media) if research else "none",
-        "is_sanctioned": str(sanctions.is_sanctioned) if sanctions else "unknown",
-        "sanctions_hits": "; ".join(sanctions_hits) or "none",
-        "ubo_summary": _format_ubo(ubo),
-        "pep_list": "; ".join(pep_list) or "none",
+    rating: RiskRating = await _chain().ainvoke({
+        "name":               entity.name,
+        "jurisdiction":       entity.jurisdiction,
+        "research_summary":   research.summary if research else "N/A",
+        "adverse_media":      "; ".join(research.adverse_media) if research else "none",
+        "is_sanctioned":      str(sanctions.is_sanctioned) if sanctions else "unknown",
+        "sanctions_hits":     "; ".join(sanctions_hits) or "none",
+        "ubo_summary":        _format_ubo(ubo),
+        "pep_list":           "; ".join(pep_list) or "none",
         "ownership_verified": str(ubo.ownership_verified) if ubo else "unknown",
-        "flags": "\n".join(flags) or "none",
+        "flags":              "\n".join(flags) or "none",
     })
 
     log.info("complete", level=rating.level, score=rating.score)

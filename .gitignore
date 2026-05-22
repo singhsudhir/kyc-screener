@@ -40,3 +40,4 @@ langchain_cache/
 logs/
 venv/
 .env
+.streamlit/secrets.toml

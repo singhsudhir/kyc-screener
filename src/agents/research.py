@@ -8,7 +8,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from src.orchestrator.state import GraphState
 from src.models import ResearchFindings
 from src.tools.search import web_search
-from src.agents._llm import get_llm, ainvoke_with_retry
+from src.agents._llm import build_chain
 
 logger = structlog.get_logger(__name__)
 
@@ -29,7 +29,7 @@ _prompt = ChatPromptTemplate.from_messages([
 
 @functools.lru_cache(maxsize=1)
 def _chain():
-    return _prompt | get_llm().with_structured_output(ResearchFindings)
+    return build_chain(_prompt, ResearchFindings)
 
 
 async def run(state: GraphState) -> dict:
@@ -42,7 +42,7 @@ async def run(state: GraphState) -> dict:
 
     formatted = "\n\n".join(f"[{r['url']}]\n{r['content']}" for r in raw_results)
 
-    findings: ResearchFindings = await ainvoke_with_retry(_chain(), {
+    findings: ResearchFindings = await _chain().ainvoke({
         "name": entity.name,
         "jurisdiction": entity.jurisdiction,
         "search_results": formatted,
