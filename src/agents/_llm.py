@@ -10,10 +10,14 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 logger = structlog.get_logger(__name__)
 
 _MODEL = "gemini-2.5-flash"
-_TRANSIENT_MARKERS = ("503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED", "overloaded")
 _MAX_ATTEMPTS = 4
 _BASE_DELAY = 5.0   # seconds before first retry
 _MAX_DELAY = 60.0
+
+# Daily quota exhaustion — retrying will never succeed until the next day
+_PERMANENT_MARKERS = ("PerDay", "per_day", "daily")
+# Transient capacity issues — worth retrying after a short wait
+_TRANSIENT_MARKERS = ("503", "UNAVAILABLE", "overloaded", "PerMinute", "per_minute")
 
 
 @functools.lru_cache(maxsize=1)
@@ -24,6 +28,9 @@ def get_llm() -> ChatGoogleGenerativeAI:
 
 def _is_transient(exc: BaseException) -> bool:
     msg = str(exc)
+    # Daily quota exhaustion is permanent until reset — fail fast
+    if any(m in msg for m in _PERMANENT_MARKERS):
+        return False
     return any(m in msg for m in _TRANSIENT_MARKERS)
 
 
