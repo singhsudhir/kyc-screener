@@ -10,15 +10,6 @@ from tavily import AsyncTavilyClient
 logger = structlog.get_logger(__name__)
 
 _MAX_RESULTS = 8
-_client: AsyncTavilyClient | None = None
-
-
-def _get_client() -> AsyncTavilyClient:
-    global _client
-    if _client is None:
-        api_key = os.environ["TAVILY_API_KEY"]
-        _client = AsyncTavilyClient(api_key=api_key)
-    return _client
 
 
 async def web_search(query: str, max_results: int = _MAX_RESULTS) -> list[dict[str, Any]]:
@@ -26,9 +17,15 @@ async def web_search(query: str, max_results: int = _MAX_RESULTS) -> list[dict[s
     log = logger.bind(tool="web_search", query=query)
     log.info("searching")
 
+    # Create a fresh client per call — AsyncTavilyClient wraps an httpx.AsyncClient
+    # that is bound to the current event loop. Reusing a cached client across
+    # separate asyncio.run() calls (each creates a new loop) causes
+    # "TCPTransport closed" errors on the second and subsequent screenings.
+    client = AsyncTavilyClient(api_key=os.environ["TAVILY_API_KEY"])
+
     for attempt in range(1, 4):
         try:
-            response = await _get_client().search(
+            response = await client.search(
                 query=query,
                 max_results=max_results,
                 search_depth="advanced",
@@ -41,10 +38,10 @@ async def web_search(query: str, max_results: int = _MAX_RESULTS) -> list[dict[s
             log.info("done", count=len(results))
             return results
         except Exception as exc:
-            log.warning("retry", attempt=attempt, error=str(exc))
             if attempt == 3:
                 log.error("failed", error=str(exc))
                 return []
+            log.warning("retry", attempt=attempt, error=str(exc))
             await asyncio.sleep(2 ** attempt)
 
     return []

@@ -1839,6 +1839,21 @@ def _run_screening_inline(payload: dict) -> None:
     from src.orchestrator.graph import kyc_graph  # type: ignore
     from src.models.entities import CompanyEntity  # type: ignore
 
+    # Each asyncio.run() creates a new event loop. Clear all LRU-cached LLM and
+    # chain objects so they are recreated fresh inside the new loop — stale
+    # objects hold TCP transports bound to the old (now-closed) loop.
+    try:
+        from src.agents._llm import get_llm, _get_gemini_fallback, _get_groq
+        from src.agents.research import _chain as _r_chain
+        from src.agents.sanctions import _chain as _s_chain
+        from src.agents.ubo import _chain as _u_chain
+        from src.agents.risk_assessment import _chain as _ra_chain
+        for fn in (get_llm, _get_gemini_fallback, _get_groq,
+                   _r_chain, _s_chain, _u_chain, _ra_chain):
+            fn.cache_clear()
+    except Exception:
+        pass
+
     result: dict[str, Any] = {}
 
     def _call() -> None:
