@@ -3,11 +3,11 @@ from __future__ import annotations
 import functools
 
 import structlog
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 
 from src.orchestrator.state import GraphState
 from src.models import RiskRating
+from src.agents._llm import get_llm, ainvoke_with_retry
 
 logger = structlog.get_logger(__name__)
 
@@ -48,8 +48,7 @@ _prompt = ChatPromptTemplate.from_messages([
 
 @functools.lru_cache(maxsize=1)
 def _chain():
-    llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0)
-    return _prompt | llm.with_structured_output(RiskRating)
+    return _prompt | get_llm().with_structured_output(RiskRating)
 
 
 async def run(state: GraphState) -> dict:
@@ -68,7 +67,7 @@ async def run(state: GraphState) -> dict:
         if sanctions else []
     )
 
-    rating: RiskRating = await _chain().ainvoke({
+    rating: RiskRating = await ainvoke_with_retry(_chain(), {
         "name": entity.name,
         "jurisdiction": entity.jurisdiction,
         "research_summary": research.summary if research else "N/A",

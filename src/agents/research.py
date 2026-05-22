@@ -3,12 +3,12 @@ from __future__ import annotations
 import functools
 
 import structlog
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 
 from src.orchestrator.state import GraphState
 from src.models import ResearchFindings
 from src.tools.search import web_search
+from src.agents._llm import get_llm, ainvoke_with_retry
 
 logger = structlog.get_logger(__name__)
 
@@ -29,8 +29,7 @@ _prompt = ChatPromptTemplate.from_messages([
 
 @functools.lru_cache(maxsize=1)
 def _chain():
-    llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0)
-    return _prompt | llm.with_structured_output(ResearchFindings)
+    return _prompt | get_llm().with_structured_output(ResearchFindings)
 
 
 async def run(state: GraphState) -> dict:
@@ -43,7 +42,7 @@ async def run(state: GraphState) -> dict:
 
     formatted = "\n\n".join(f"[{r['url']}]\n{r['content']}" for r in raw_results)
 
-    findings: ResearchFindings = await _chain().ainvoke({
+    findings: ResearchFindings = await ainvoke_with_retry(_chain(), {
         "name": entity.name,
         "jurisdiction": entity.jurisdiction,
         "search_results": formatted,

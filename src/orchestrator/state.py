@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Optional
+import operator
+from typing import Annotated, Optional
 from typing_extensions import TypedDict
 
 from src.models import (
@@ -25,9 +26,9 @@ class GraphState(TypedDict, total=False):
     ubo_structure: Optional[UBOStructure]
     risk_rating: Optional[RiskRating]
 
-    # Orchestrator metadata
-    flags: list[str]
-    errors: list[str]
+    # Reducer-annotated lists so parallel agents can safely append without conflict
+    flags: Annotated[list[str], operator.add]
+    errors: Annotated[list[str], operator.add]
 
     # Final output
     report: Optional[KYCReport]

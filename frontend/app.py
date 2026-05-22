@@ -1825,7 +1825,7 @@ st.markdown(
     </span>
     <span style="color:#4A5568;font-size:0.72rem;">
         Powered by &nbsp;
-        <strong style="color:#8B949E;">Gemini 2.0 Flash</strong> ·
+        <strong style="color:#8B949E;">Gemini 2.5 Flash</strong> ·
         <strong style="color:#8B949E;">LangGraph</strong> ·
         <strong style="color:#8B949E;">OpenSanctions</strong>
     </span>

@@ -3,13 +3,13 @@ from __future__ import annotations
 import functools
 
 import structlog
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 
 from src.orchestrator.state import GraphState
 from src.models import UBOStructure
 from src.tools.search import web_search
 from src.tools.company_registry import lookup_company_registry
+from src.agents._llm import get_llm, ainvoke_with_retry
 
 logger = structlog.get_logger(__name__)
 
@@ -36,8 +36,7 @@ _prompt = ChatPromptTemplate.from_messages([
 
 @functools.lru_cache(maxsize=1)
 def _chain():
-    llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0)
-    return _prompt | llm.with_structured_output(UBOStructure)
+    return _prompt | get_llm().with_structured_output(UBOStructure)
 
 
 async def run(state: GraphState) -> dict:
@@ -47,7 +46,7 @@ async def run(state: GraphState) -> dict:
 
     registry_data, search_results = await _fetch_sources(entity)
 
-    structure: UBOStructure = await _chain().ainvoke({
+    structure: UBOStructure = await ainvoke_with_retry(_chain(), {
         "name": entity.name,
         "jurisdiction": entity.jurisdiction,
         "reg_number": entity.registration_number or "unknown",
@@ -55,13 +54,11 @@ async def run(state: GraphState) -> dict:
         "search_results": search_results,
     })
 
-    flags = state.get("flags", [])
     pep_ubos = [u.name for u in structure.ubos if u.pep_status]
-    if pep_ubos:
-        flags.append(f"PEP IDENTIFIED: {', '.join(pep_ubos)}")
+    new_flags: list[str] = [f"PEP IDENTIFIED: {', '.join(pep_ubos)}"] if pep_ubos else []
 
     log.info("complete", ubos=len(structure.ubos), peps=len(pep_ubos))
-    return {"ubo_structure": structure, "flags": flags}
+    return {"ubo_structure": structure, "flags": new_flags}
 
 
 async def _fetch_sources(entity) -> tuple[dict, str]:
