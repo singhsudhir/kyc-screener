@@ -365,7 +365,7 @@ st.set_page_config(
     page_title="KYC Screener",
     page_icon="🔍",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1683,50 +1683,52 @@ def _render_sidebar() -> bool:
             'letter-spacing:0.1em;color:#4A5568;margin:0 0 1rem;">Mode</p>',
             unsafe_allow_html=True,
         )
-        if live_available:
-            live = st.toggle(
-                "Live Screening",
-                key="live_mode_toggle",
-                help="Screen any company using real AI agents and live data sources",
+        live = st.toggle(
+            "Live Screening",
+            key="live_mode_toggle",
+            disabled=not live_available,
+            help=(
+                "Screen any company using real AI agents and live data sources"
+                if live_available else
+                "Add GEMINI_API_KEY and TAVILY_API_KEY to Streamlit secrets to enable"
+            ),
+        )
+        if not live_available:
+            live = False  # keep False even if toggle state is somehow True
+
+        if live:
+            st.markdown(
+                '<div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);'
+                'border-radius:6px;padding:0.6rem 0.75rem;margin-top:0.75rem;">'
+                '<p style="font-size:0.72rem;font-weight:700;color:#22C55E;margin:0 0 0.2rem;">Live Mode Active</p>'
+                '<p style="font-size:0.68rem;color:#8B949E;margin:0;">Real AI agents · Live data · API calls charged</p>'
+                '</div>',
+                unsafe_allow_html=True,
             )
-            if live:
-                st.markdown(
-                    '<div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);'
-                    'border-radius:6px;padding:0.6rem 0.75rem;margin-top:0.75rem;">'
-                    '<p style="font-size:0.72rem;font-weight:700;color:#22C55E;margin:0 0 0.2rem;">Live Mode Active</p>'
-                    '<p style="font-size:0.68rem;color:#8B949E;margin:0;">Real AI agents · Live data · API calls charged</p>'
-                    '</div>',
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.markdown(
-                    '<div style="background:rgba(56,139,253,0.07);border:1px solid rgba(56,139,253,0.18);'
-                    'border-radius:6px;padding:0.6rem 0.75rem;margin-top:0.75rem;">'
-                    '<p style="font-size:0.72rem;font-weight:700;color:#388BFD;margin:0 0 0.2rem;">Demo Mode</p>'
-                    '<p style="font-size:0.68rem;color:#8B949E;margin:0;">Sample data · No API calls · Free to explore</p>'
-                    '</div>',
-                    unsafe_allow_html=True,
-                )
-        else:
-            live = False
+        elif live_available:
             st.markdown(
                 '<div style="background:rgba(56,139,253,0.07);border:1px solid rgba(56,139,253,0.18);'
-                'border-radius:6px;padding:0.6rem 0.75rem;">'
+                'border-radius:6px;padding:0.6rem 0.75rem;margin-top:0.75rem;">'
+                '<p style="font-size:0.72rem;font-weight:700;color:#388BFD;margin:0 0 0.2rem;">Demo Mode</p>'
+                '<p style="font-size:0.68rem;color:#8B949E;margin:0;">Sample data · No API calls · Free to explore</p>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                '<div style="background:rgba(56,139,253,0.07);border:1px solid rgba(56,139,253,0.18);'
+                'border-radius:6px;padding:0.6rem 0.75rem;margin-top:0.75rem;">'
                 '<p style="font-size:0.72rem;font-weight:700;color:#388BFD;margin:0 0 0.2rem;">Demo Mode</p>'
                 '<p style="font-size:0.68rem;color:#8B949E;margin:0;">Sample data · No API calls</p>'
                 '</div>',
                 unsafe_allow_html=True,
             )
             st.markdown(
-                '<p style="font-size:0.65rem;font-weight:700;text-transform:uppercase;'
-                'letter-spacing:0.1em;color:#4A5568;margin:1.5rem 0 0.5rem;">Enable Live Mode</p>',
+                '<p style="font-size:0.65rem;color:#8B949E;line-height:1.6;margin-top:0.75rem;">'
+                'Add <code>GEMINI_API_KEY</code> and <code>TAVILY_API_KEY</code> to '
+                'Streamlit secrets to enable live screening.</p>',
                 unsafe_allow_html=True,
             )
-            st.markdown(
-                '<p style="font-size:0.72rem;color:#8B949E;line-height:1.6;margin:0;">Add API keys to Streamlit secrets:</p>',
-                unsafe_allow_html=True,
-            )
-            st.code("GEMINI_API_KEY\nTAVILY_API_KEY\nOPENSANCTIONS_API_KEY", language=None)
 
         st.markdown(
             '<hr style="border-color:rgba(255,255,255,0.07);margin:1.5rem 0;"/>'
