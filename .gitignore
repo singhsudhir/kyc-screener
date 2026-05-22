@@ -31,6 +31,8 @@ __pycache__/
 build/
 data/live_*.json
 data/real_*.json
+data/sanctions/*.json
+data/sanctions/*.db
 dist/
 env/
 htmlcov/

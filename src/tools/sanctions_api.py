@@ -7,6 +7,8 @@ from typing import Any
 import httpx
 import structlog
 
+from src.tools.sanctions_local import is_index_available, query_local_sanctions
+
 logger = structlog.get_logger(__name__)
 
 _BASE_URL = "https://api.opensanctions.org"
@@ -23,8 +25,21 @@ def _headers() -> dict[str, str]:
 
 
 async def query_opensanctions(name: str, jurisdiction: str | None = None) -> dict[str, Any]:
-    """Query the OpenSanctions /match endpoint for a given entity name."""
-    log = logger.bind(tool="sanctions_api", name=name)
+    """Query sanctions data for *name*.
+
+    Uses the local FTM SQLite index when available (fast, no API key required).
+    Falls back to the live OpenSanctions /match API otherwise.
+    """
+    if is_index_available():
+        logger.bind(tool="sanctions_api", name=name).info("using_local_index")
+        return await query_local_sanctions(name, jurisdiction)
+
+    return await _query_live_api(name, jurisdiction)
+
+
+async def _query_live_api(name: str, jurisdiction: str | None = None) -> dict[str, Any]:
+    """Query the live OpenSanctions /match endpoint."""
+    log = logger.bind(tool="sanctions_api_live", name=name)
     log.info("querying")
 
     payload: dict[str, Any] = {
