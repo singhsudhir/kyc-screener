@@ -1699,7 +1699,7 @@ def _run_demo_screening(mock_report: dict) -> None:
     history = st.session_state.get("history", [])
     history.append(mock_report)
     st.session_state["history"] = history[-8:]
-    st.rerun()
+    _render_report(mock_report)
 
 
 def _run_screening(payload: dict) -> None:
