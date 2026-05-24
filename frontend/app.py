@@ -1789,8 +1789,15 @@ else:
     st.markdown("<div style='height:0.5rem;'></div>", unsafe_allow_html=True)
 
 # ── Dispatch ──────────────────────────────────────────────────────────────────
-if submitted:
+# Pop a one-shot guard set when a screening was just dispatched.  If the
+# browser replays the button click on a WebSocket reconnect (which can happen
+# after the main thread was blocked for 30–180 s during a live screening),
+# this prevents the next script run from re-entering the screening path.
+_just_ran = st.session_state.pop("_screening_ran", False)
+
+if submitted and not _just_ran:
     if demo_mode:
+        st.session_state["_screening_ran"] = True
         mock = copy.deepcopy(MOCK_REPORTS[scenario_key])
         if company_name.strip():
             mock["entity"]["name"] = company_name.strip()
@@ -1800,6 +1807,7 @@ if submitted:
     elif not jur_option:
         st.error("Please select a jurisdiction.")
     else:
+        st.session_state["_screening_ran"] = True
         jurisdiction = jur_option.split(" — ")[0].strip()
         _run_screening({
             "name":        company_name,
